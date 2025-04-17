@@ -1,4 +1,4 @@
-package gonzosquest
+package cashfarm
 
 import (
 	"context"
@@ -7,6 +7,10 @@ import (
 
 	"github.com/slotopol/server/game/slot"
 )
+
+// Bonus game expectation
+// calculation see at helper/prov/novomatic/cashfarmbon.lua
+const Ebon = 50
 
 func CalcStat(ctx context.Context, mrtp float64) float64 {
 	var reels, _ = slot.FindClosest(ReelsMap, mrtp)
@@ -22,18 +26,16 @@ func CalcStat(ctx context.Context, mrtp float64) float64 {
 		var cost, _ = g.Cost()
 		var lrtp, srtp = s.LineRTP(cost), s.ScatRTP(cost)
 		var rtpsym = lrtp + srtp
-		var q = float64(s.FreeCount()) / reshuf1
-		var sq = 1 / (1 - q)
-		var rtpfs = sq * 3 * rtpsym
-		var rtp = rtpsym + q*rtpfs
+		var qfarm = float64(s.BonusCount(farmbn)) / reshuf1
+		var rtpbon = Ebon * qfarm * 100
+		var rtp = rtpsym + rtpbon
 		fmt.Fprintf(w, "symbols: %.5g(lined) + %.5g(scatter) = %.6f%%\n", lrtp, srtp, rtpsym)
-		fmt.Fprintf(w, "free spins %d, q = %.5g, sq = 1/(1-q) = %.6f\n", s.FreeCount(), q, sq)
-		fmt.Fprintf(w, "free games frequency: 1/%.5g\n", reshuf1/float64(s.FreeHits()))
 		fmt.Fprintf(w, "fall[2] = %.10g, freq = 1/%.5g\n", reshuf2, reshuf1/reshuf2)
 		fmt.Fprintf(w, "fall[3] = %.10g, freq = 1/%.5g, freq2 = 1/%.5g\n", reshuf3, reshuf1/reshuf3, reshuf2/reshuf3)
 		fmt.Fprintf(w, "fall[4] = %.10g, freq = 1/%.5g, freq2 = 1/%.5g\n", reshuf4, reshuf1/reshuf4, reshuf3/reshuf4)
 		fmt.Fprintf(w, "fall[5] = %.10g, freq = 1/%.5g, freq2 = 1/%.5g\n", reshuf5, reshuf1/reshuf5, reshuf4/reshuf5)
-		fmt.Fprintf(w, "RTP = %.5g(sym) + %.5g*%.5g(fg) = %.6f%%\n", rtpsym, q, rtpfs, rtp)
+		fmt.Fprintf(w, "farm bonuses: frequency 1/%.5g, rtp = %.6f%%\n", reshuf1/float64(s.BonusCount(farmbn)), rtpbon)
+		fmt.Fprintf(w, "RTP = %.5g(sym) + %.5g(farm) = %.6f%%\n", rtpsym, rtpbon, rtp)
 		return rtp
 	}
 

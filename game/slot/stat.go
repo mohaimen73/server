@@ -2,6 +2,7 @@ package slot
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -122,11 +123,16 @@ func Progress(ctx context.Context, s Stater, calc func(io.Writer) float64) {
 			var total = float64(s.Planned())
 			var rtp = calc(io.Discard)
 			var dur = time.Since(t0)
-			var exp = time.Duration(float64(dur) * total / reshuf)
-			fmt.Printf("processed %.1fm, ready %2.2f%% (%v / %v), RTP = %2.2f%%  \r",
-				reshuf/1e6, reshuf/total*100,
-				dur.Truncate(stepdur), exp.Truncate(stepdur),
-				rtp)
+			if total > 0 {
+				var exp = time.Duration(float64(dur) * total / reshuf)
+				fmt.Printf("processed %.1fm, ready %2.2f%% (%v / %v), RTP = %2.2f%%  \r",
+					reshuf/1e6, reshuf/total*100,
+					dur.Truncate(stepdur), exp.Truncate(stepdur),
+					rtp)
+			} else {
+				fmt.Printf("processed %.1fm, spent %v, RTP = %2.2f%%  \r",
+					reshuf/1e6, dur.Truncate(stepdur), rtp)
+			}
 		}
 	}
 }
@@ -140,7 +146,16 @@ func PrintSymPays(s Stater, cost float64) func(io.Writer) float64 {
 	}
 }
 
-const CtxGranulation = 100
+type CalcAlg = func(ctx context.Context, s Stater, g SlotGame, reels Reels)
+
+const (
+	CtxGranulation = 100
+	CascadeLimit   = 15
+)
+
+var (
+	ErrAvalanche = errors.New("too many cascades")
+)
 
 func CorrectThrNum() int {
 	if cfg.DevMode {
@@ -151,9 +166,8 @@ func CorrectThrNum() int {
 	return cfg.MTCount
 }
 
-type CalcAlg = func(ctx context.Context, s Stater, g SlotGame, reels Reels)
-
 func BruteForce3x(ctx context.Context, s Stater, g SlotGame, reels Reels) {
+	s.SetPlan(reels.Reshuffles())
 	var tn = CorrectThrNum()
 	var tn64 = uint64(tn)
 	var r1 = reels.Reel(1)
@@ -191,6 +205,9 @@ func BruteForce3x(ctx context.Context, s Stater, g SlotGame, reels Reels) {
 							for {
 								cs.NewFall()
 								cfn++
+								if cfn > CascadeLimit {
+									panic(ErrAvalanche)
+								}
 								cs.Scanner(&wins)
 								s.Update(wins, cfn)
 								cs.Strike(wins)
@@ -218,6 +235,7 @@ func BruteForce3x(ctx context.Context, s Stater, g SlotGame, reels Reels) {
 }
 
 func BruteForce4x(ctx context.Context, s Stater, g SlotGame, reels Reels) {
+	s.SetPlan(reels.Reshuffles())
 	var tn = CorrectThrNum()
 	var tn64 = uint64(tn)
 	var r1 = reels.Reel(1)
@@ -258,6 +276,9 @@ func BruteForce4x(ctx context.Context, s Stater, g SlotGame, reels Reels) {
 								for {
 									cs.NewFall()
 									cfn++
+									if cfn > CascadeLimit {
+										panic(ErrAvalanche)
+									}
 									cs.Scanner(&wins)
 									s.Update(wins, cfn)
 									cs.Strike(wins)
@@ -287,6 +308,7 @@ func BruteForce4x(ctx context.Context, s Stater, g SlotGame, reels Reels) {
 }
 
 func BruteForce5x(ctx context.Context, s Stater, g SlotGame, reels Reels) {
+	s.SetPlan(reels.Reshuffles())
 	var tn = CorrectThrNum()
 	var tn64 = uint64(tn)
 	var r1 = reels.Reel(1)
@@ -330,6 +352,9 @@ func BruteForce5x(ctx context.Context, s Stater, g SlotGame, reels Reels) {
 									for {
 										cs.NewFall()
 										cfn++
+										if cfn > CascadeLimit {
+											panic(ErrAvalanche)
+										}
 										cs.Scanner(&wins)
 										s.Update(wins, cfn)
 										cs.Strike(wins)
@@ -361,6 +386,7 @@ func BruteForce5x(ctx context.Context, s Stater, g SlotGame, reels Reels) {
 }
 
 func BruteForce5x3Big(ctx context.Context, s Stater, g SlotGame, r1, rb, r5 []Sym) {
+	s.SetPlan(uint64(len(r1)) * uint64(len(rb)) * uint64(len(r5)))
 	var tn = CorrectThrNum()
 	var tn64 = uint64(tn)
 	var wg sync.WaitGroup
@@ -402,6 +428,7 @@ func BruteForce5x3Big(ctx context.Context, s Stater, g SlotGame, r1, rb, r5 []Sy
 }
 
 func BruteForce6x(ctx context.Context, s Stater, g SlotGame, reels Reels) {
+	s.SetPlan(reels.Reshuffles())
 	var tn = CorrectThrNum()
 	var tn64 = uint64(tn)
 	var r1 = reels.Reel(1)
@@ -448,6 +475,9 @@ func BruteForce6x(ctx context.Context, s Stater, g SlotGame, reels Reels) {
 										for {
 											cs.NewFall()
 											cfn++
+											if cfn > CascadeLimit {
+												panic(ErrAvalanche)
+											}
 											cs.Scanner(&wins)
 											s.Update(wins, cfn)
 											cs.Strike(wins)
@@ -481,6 +511,7 @@ func BruteForce6x(ctx context.Context, s Stater, g SlotGame, reels Reels) {
 }
 
 func MonteCarlo(ctx context.Context, s Stater, g SlotGame, reels Reels) {
+	s.SetPlan(cfg.MCCount * 1e6)
 	var tn = CorrectThrNum()
 	var tn64 = uint64(tn)
 	var n = s.Planned()
@@ -508,6 +539,9 @@ func MonteCarlo(ctx context.Context, s Stater, g SlotGame, reels Reels) {
 					for {
 						cs.NewFall()
 						cfn++
+						if cfn > CascadeLimit {
+							panic(ErrAvalanche)
+						}
 						cs.ReelSpin(reels)
 						cs.Scanner(&wins)
 						s.Update(wins, cfn)
@@ -529,44 +563,120 @@ func MonteCarlo(ctx context.Context, s Stater, g SlotGame, reels Reels) {
 	wg.Wait()
 }
 
+func MonteCarloPrec(ctx context.Context, s Stater, g SlotGame, reels Reels, calc func(io.Writer) float64) {
+	s.SetPlan(0)
+	var tn = CorrectThrNum()
+	var rtpcmp float64
+	var rtpmux sync.Mutex
+	var rtpnum uint64
+	var mcc = cfg.MCCount * 1e6 / CtxGranulation
+	if mcc == 0 {
+		mcc = 1e7 / CtxGranulation
+	}
+	var wg sync.WaitGroup
+	wg.Add(tn)
+	for range tn {
+		var sg = g.Clone().(ClassicSlot)     // classic slot game
+		var cs, iscascade = sg.(CascadeSlot) // cascade slot game
+		var reshuf uint64
+		go func() {
+			defer wg.Done()
+
+			var wins Wins
+			for atomic.LoadUint64(&rtpnum) < mcc {
+				reshuf++
+				if reshuf%CtxGranulation == 0 {
+					select {
+					case <-ctx.Done():
+						return
+					default:
+					}
+					var rtp = calc(io.Discard)
+					rtpmux.Lock()
+					if diff := rtp - rtpcmp; diff < cfg.MCPrec && diff > -cfg.MCPrec {
+						rtpnum++
+					} else {
+						rtpnum = 0
+						rtpcmp = rtp
+					}
+					rtpmux.Unlock()
+				}
+				if iscascade {
+					var cfn int
+					for {
+						cs.NewFall()
+						cfn++
+						if cfn > CascadeLimit {
+							panic(ErrAvalanche)
+						}
+						cs.ReelSpin(reels)
+						cs.Scanner(&wins)
+						s.Update(wins, cfn)
+						cs.Strike(wins)
+						if len(wins) == 0 {
+							break
+						}
+						wins.Reset()
+					}
+				} else {
+					sg.ReelSpin(reels)
+					sg.Scanner(&wins)
+					s.Update(wins, 1)
+					wins.Reset()
+				}
+			}
+		}()
+	}
+	wg.Wait()
+}
+
+func MCCalcAlg(calc func(io.Writer) float64) CalcAlg {
+	return func(ctx context.Context, s Stater, g SlotGame, reels Reels) {
+		MonteCarloPrec(ctx, s, g, reels, calc)
+	}
+}
+
 func ScanReels(ctx context.Context, s Stater, g SlotGame, reels Reels,
-	bruteforce CalcAlg, montecarlo CalcAlg,
+	bruteforce, montecarlo, montecarloprec CalcAlg,
 	calc func(io.Writer) float64) float64 {
 	var t0 = time.Now()
 	var ctx2, cancel2 = context.WithCancel(ctx)
 	defer cancel2()
-	if cfg.MCCount > 0 {
-		s.SetPlan(cfg.MCCount * 1e6)
-		go Progress(ctx2, s, calc)
+	go Progress(ctx2, s, calc)
+	if cfg.MCPrec > 0 {
+		montecarloprec(ctx2, s, g, reels)
+	} else if cfg.MCCount > 0 {
 		montecarlo(ctx2, s, g, reels)
 	} else {
-		s.SetPlan(reels.Reshuffles())
-		go Progress(ctx2, s, calc)
 		bruteforce(ctx2, s, g, reels)
 	}
 	var dur = time.Since(t0)
-	var comp = float64(s.Count(1)) / float64(s.Planned()) * 100
-	fmt.Printf("completed %.5g%%, selected %d lines, time spent %v            \n", comp, g.GetSel(), dur)
+	if s.Planned() > 0 {
+		var comp = float64(s.Count(1)) / float64(s.Planned()) * 100
+		fmt.Printf("completed %.5g%%, selected %d lines, time spent %v            \n", comp, g.GetSel(), dur)
+	} else {
+		fmt.Printf("produced %.1fm, selected %d lines, time spent %v            \n", float64(s.Count(1))/1e6, g.GetSel(), dur)
+	}
 	fmt.Printf("reels lengths %s, total reshuffles %d\n", reels.String(), reels.Reshuffles())
 	return calc(os.Stdout)
 }
 
 func ScanReels3x(ctx context.Context, s Stater, g SlotGame, reels *Reels3x,
 	calc func(io.Writer) float64) float64 {
-	return ScanReels(ctx, s, g, reels, BruteForce3x, MonteCarlo, calc)
+	return ScanReels(ctx, s, g, reels, BruteForce3x, MonteCarlo, MCCalcAlg(calc), calc)
 }
 
 func ScanReels4x(ctx context.Context, s Stater, g SlotGame, reels *Reels4x,
 	calc func(io.Writer) float64) float64 {
-	return ScanReels(ctx, s, g, reels, BruteForce4x, MonteCarlo, calc)
+	return ScanReels(ctx, s, g, reels, BruteForce4x, MonteCarlo, MCCalcAlg(calc), calc)
 }
 
 func ScanReels5x(ctx context.Context, s Stater, g SlotGame, reels *Reels5x,
 	calc func(io.Writer) float64) float64 {
-	return ScanReels(ctx, s, g, reels, BruteForce5x, MonteCarlo, calc)
+	return ScanReels(ctx, s, g, reels, BruteForce5x, MonteCarlo, MCCalcAlg(calc), calc)
 }
 
 func ScanReels6x(ctx context.Context, s Stater, g SlotGame, reels *Reels6x,
 	calc func(io.Writer) float64) float64 {
-	return ScanReels(ctx, s, g, reels, BruteForce6x, MonteCarlo, calc)
+	return ScanReels(ctx, s, g, reels, BruteForce6x, MonteCarlo, MCCalcAlg(calc), calc)
 }
