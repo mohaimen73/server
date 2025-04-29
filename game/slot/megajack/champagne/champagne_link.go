@@ -8,10 +8,10 @@ import (
 
 var Info = game.GameInfo{
 	Aliases: []game.GameAlias{
-		{Prov: "Megajack", Name: "Champagne"},
+		{Prov: "Megajack", Name: "Champagne", Year: 1988},
 	},
 	GP: game.GPlpay |
-		game.GPsel |
+		game.GPlsel |
 		game.GPjack |
 		game.GPretrig |
 		game.GPfgmult |

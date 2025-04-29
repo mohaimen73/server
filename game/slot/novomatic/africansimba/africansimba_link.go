@@ -8,7 +8,7 @@ import (
 
 var Info = game.GameInfo{
 	Aliases: []game.GameAlias{
-		{Prov: "Novomatic", Name: "African Simba"},
+		{Prov: "Novomatic", Name: "African Simba", Year: 2009},
 	},
 	GP: game.GPlpay |
 		game.GPretrig |
@@ -18,7 +18,7 @@ var Info = game.GameInfo{
 	SX:  5,
 	SY:  3,
 	SN:  len(LinePay),
-	LN:  243,
+	WN:  243,
 	BN:  0,
 	RTP: game.MakeRtpList(ReelsMap),
 }

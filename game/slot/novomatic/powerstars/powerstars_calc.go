@@ -23,6 +23,7 @@ func BruteForceStars(ctx context.Context, s slot.Stater, g *Game, reels slot.Ree
 	var r3 = reels.Reel(3)
 	var r4 = reels.Reel(4)
 	var r5 = reels.Reel(5)
+	var reshuf uint64
 	for i1 := range r1 {
 		g.SetCol(1, r1, i1)
 		for i2 := range r2 {
@@ -32,6 +33,14 @@ func BruteForceStars(ctx context.Context, s slot.Stater, g *Game, reels slot.Ree
 				for i4 := range r4 {
 					g.SetCol(4, r4, i4)
 					for i5 := range r5 {
+						reshuf++
+						if reshuf%slot.CtxGranulation == 0 {
+							select {
+							case <-ctx.Done():
+								return
+							default:
+							}
+						}
 						g.SetCol(5, r5, i5)
 						var sym2, sym3, sym4 = g.At(2, 1), g.At(3, 1), g.At(4, 1)
 						if wc2 {
@@ -49,13 +58,6 @@ func BruteForceStars(ctx context.Context, s slot.Stater, g *Game, reels slot.Ree
 						g.SetSym(4, 1, sym4)
 						s.Update(wins, 1)
 						wins.Reset()
-						if s.Count(1)&100 == 0 {
-							select {
-							case <-ctx.Done():
-								return
-							default:
-							}
-						}
 					}
 				}
 			}
@@ -92,7 +94,7 @@ func CalcStatStars(ctx context.Context, wc2, wc3, wc4 bool) float64 {
 		go slot.Progress(ctx2, &s, calc)
 		BruteForceStars(ctx2, &s, g, reels, wc2, wc3, wc4)
 		var dur = time.Since(t0)
-		var comp = float64(s.Count(1)) / float64(s.Planned()) * 100
+		var comp = float64(s.Reshuf(1)) / float64(s.Planned()) * 100
 		fmt.Printf("completed %.5g%%, selected %d lines, time spent %v\n", comp, g.GetSel(), dur)
 	}()
 	return calc(os.Stdout)
@@ -102,7 +104,6 @@ func CalcStat(ctx context.Context, mrtp float64) (rtp float64) {
 	var wc, _ = slot.FindClosest(ChanceMap, mrtp) // wild chance
 
 	var b = 1 / wc
-	fmt.Printf("wild chance %.5g, b = %.5g\n", wc, b)
 	var rtp000 = CalcStatStars(ctx, false, false, false)
 	var rtp100 = CalcStatStars(ctx, true, false, false)
 	var rtp010 = CalcStatStars(ctx, false, true, false)
@@ -113,8 +114,9 @@ func CalcStat(ctx context.Context, mrtp float64) (rtp float64) {
 	var rtp111 = CalcStatStars(ctx, true, true, true)
 	var q = AnyStarProb(b)
 	var rtpfs = ((rtp100+rtp010+rtp001)*(b-1)*(b-1) + (rtp110+rtp011+rtp101)*(b-1) + rtp111) / (b*b + (b-1)*b + (b-1)*(b-1))
-	rtp = rtp000 + q*rtpfs
+	rtp = (1-q)*rtp000 + q*rtpfs
+	fmt.Printf("wild chance: 1/%.5g\n", 1/wc)
 	fmt.Printf("free spins: q = %.5g, 1/q = %.5g, rtpfs = %.6f%%\n", q, 1/q, rtpfs)
-	fmt.Printf("RTP = %.5g(sym) + q*%.5g(fg) = %.6f%%\n", rtp000, rtpfs, rtp)
+	fmt.Printf("RTP = (1-q)*%.5g(sym) + q*%.5g(fg) = %.6f%%\n", rtp000, rtpfs, rtp)
 	return
 }

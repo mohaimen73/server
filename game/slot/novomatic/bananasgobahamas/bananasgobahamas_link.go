@@ -8,10 +8,10 @@ import (
 
 var Info = game.GameInfo{
 	Aliases: []game.GameAlias{
-		{Prov: "Novomatic", Name: "Bananas Go Bahamas"}, // see: https://www.slotsmate.com/software/novomatic/bananas-go-bahamas
+		{Prov: "Novomatic", Name: "Bananas Go Bahamas", Year: 2005}, // see: https://www.slotsmate.com/software/novomatic/bananas-go-bahamas
 	},
 	GP: game.GPlpay |
-		game.GPsel |
+		game.GPlsel |
 		game.GPretrig |
 		game.GPfgreel |
 		game.GPscat |

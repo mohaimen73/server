@@ -8,10 +8,10 @@ import (
 
 var Info = game.GameInfo{
 	Aliases: []game.GameAlias{
-		{Prov: "Novomatic", Name: "Oliver's Bar"}, // see: https://casino.ru/olivers-bar-novomatic/
+		{Prov: "Novomatic", Name: "Oliver's Bar", Year: 2001}, // see: https://casino.ru/olivers-bar-novomatic/
 	},
 	GP: game.GPlpay |
-		game.GPsel |
+		game.GPlsel |
 		game.GPretrig |
 		game.GPfgmult |
 		game.GPscat |
